@@ -1,5 +1,9 @@
 from django.db import models
-
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters.html import HtmlFormatter
+from pygments import highlight
+from django.contrib.auth.models import User
+from django.db.models import Sum
 # Create your models here.
 """
 Luego de la creacion de clases realizar la siguiente lista
@@ -9,63 +13,145 @@ y registrarlas en el admin
 """
 
 
-class Personas(models.Model):
-    Nombre = models.CharField(max_length=50)
-    Apellido_paterno = models.CharField(max_length=50)
-    Apellido_materno = models.CharField(max_length=50)
-    Fecha_nacimiento = models.DateField()
-    Rut = models.CharField(max_length=10)
-    Telefono = models.CharField(max_length=15)
-    Email = models.EmailField()
-    Sexo = models.CharField(max_length=50)
-    Estado_civil = models.CharField(max_length=50)
-    Direccion = models.CharField(max_length=100)
-    Ciudad = models.CharField(max_length=50)
-    Comuna = models.CharField(max_length=50)
-
-
 class Mascotas(models.Model):
-    Nombre = models.CharField(max_length=50)
-    Fecha_nacimiento = models.DateField()
-    Raza = models.CharField(max_length=50)
-    Sexo = models.CharField(max_length=50)
-    Edad = models.IntegerField()
-    Persona = models.ForeignKey(Personas, on_delete=models.CASCADE)
-    Estado_mascota = models.CharField(max_length=50)
-    Peso = models.FloatField()
-    Especie = models.CharField(max_length=200)
+    nombre = models.TextField(null=True, blank=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True)
+    especie = models.TextField(null=True, blank=True)
+    raza = models.TextField(null=True, blank=True)
+    sexo = models.TextField(null=True, blank=True)
+    edad = models.IntegerField(null=True, blank=True)
+    peso = models.FloatField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.nombre:
+            self.nombre = self.nombre.strip().title()
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.Nombre} - {self.Especie} - {self.Raza} - {self.Sexo}"
+        return f"{self.nombre} ({self.raza})"
 
 
-class Clientes(Personas):
-    Id_mascota = models.ForeignKey(Mascotas, on_delete=models.CASCADE)
+class Clientesdos(models.Model):
+    nombre = models.TextField(null=True, blank=True)
+    apellido_paterno = models.TextField(null=True, blank=True)
+    apellido_materno = models.TextField(null=True, blank=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True)
+    rut = models.TextField(null=True, blank=True)
+    telefono = models.TextField(null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    sexo = models.TextField(null=True, blank=True)
+    estado_civil = models.TextField(null=True, blank=True)
+    direccion = models.TextField(null=True, blank=True)
+    ciudad = models.TextField(null=True, blank=True)
+    comuna = models.TextField(null=True, blank=True)
+    id_mascota = models.ForeignKey(
+        Mascotas, on_delete=models.CASCADE, related_name="clientes", null=True, blank=True)
 
     def __str__(self):
-        return f"{self.Nombre}"
+        return f"{self.nombre} ({self.email})"
 
 
-class Veterinarios(Personas):
-    Especialidad = models.CharField(max_length=50)
+class Veterinarios(models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, null=True, blank=True)
+    nombre = models.TextField(null=True, blank=True)
+    apellido_paterno = models.TextField(null=True, blank=True)
+    apellido_materno = models.TextField(null=True, blank=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True)
+    rut = models.TextField(null=True, blank=True)
+    telefono = models.TextField(null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    sexo = models.TextField(null=True, blank=True)
+    estado_civil = models.TextField(null=True, blank=True)
+    direccion = models.TextField(null=True, blank=True)
+    ciudad = models.TextField(null=True, blank=True)
+    comuna = models.TextField(null=True, blank=True)
+    especialidad = models.TextField(null=True, blank=True)  # hacer foreign
+    num_colegiado = models.TextField(null=True, blank=True)
+    mascotas = models.ManyToManyField(
+        Mascotas, blank=True, through='Consultas')
 
     def __str__(self):
-        return f"{self.Nombre}"
+        return f"{self.nombre} ({self.especialidad})"
 
 
 class Consultas(models.Model):
-    Fecha_cita = models.DateTimeField()
-    Motivo = models.CharField(max_length=200)
-    VeterinariosId = models.ForeignKey(Veterinarios, on_delete=models.CASCADE)
-    MascotasId = models.ForeignKey(Mascotas, on_delete=models.CASCADE)
+    ESTADOS = [
+        ('PROGRAMADA', 'Programada'),
+        ('EN_PROGRESO', 'En Progreso'),
+        ('COMPLETADA', 'Completada'),
+        ('CANCELADA', 'Cancelada'),
+    ]
+
+    fecha_cita = models.DateTimeField()
+    motivo = models.TextField(null=True, blank=True)
+    tratamiento = models.TextField(null=True, blank=True)
+    diagnostico = models.TextField(blank=True, null=True)
+    observaciones = models.TextField(null=True, blank=True)
+    veterinario = models.ForeignKey(Veterinarios, on_delete=models.CASCADE)
+    clientes = models.ForeignKey(Clientesdos, on_delete=models.CASCADE)
+    estado = models.TextField(choices=ESTADOS, default='PROGRAMADA')
+    mascotas = models.ForeignKey(
+        Mascotas, on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.Fecha_cita}"
+        return f"{self.motivo} ({self.mascotas})"
 
 
-class Diagnosticos(models.Model):
-    Descripcion = models.CharField(max_length=200)
-    ConsultasId = models.ForeignKey(Consultas, on_delete=models.CASCADE)
+class Facturas(models.Model):
+    ESTADOS_PAGO = [
+        ('PENDIENTE', 'Pendiente'),
+        ('PARCIAL', 'Parcial'),
+        ('PAGADO', 'Pagado'),
+    ]
+
+    METODOS_PAGO = [
+        ('EFECTIVO', 'Efectivo'),
+        ('TARJETA', 'Tarjeta'),
+        ('TRANSFERENCIA', 'Transferencia'),
+    ]
+
+    fecha = models.DateField(auto_now_add=True)
+    monto_total = models.DecimalField(max_digits=10, decimal_places=2)
+    monto_pagado = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+    estado_pago = models.TextField(
+        choices=ESTADOS_PAGO, default='PENDIENTE', editable=False)
+    metodo_pago = models.TextField(choices=METODOS_PAGO, blank=True, null=True)
+    consultas = models.ForeignKey(
+        Consultas, on_delete=models.CASCADE, related_name='factura')
+    clientesdos = models.ForeignKey(
+        Clientesdos, on_delete=models.CASCADE, related_name='facturas')
+
+    total_deuda = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0)
+
+    def save(self, *args, **kwargs):
+        # Calcular estado de pago automáticamente
+        if self.monto_pagado == 0:
+            self.estado_pago = 'PENDIENTE'
+        elif self.monto_pagado >= self.monto_total:
+            self.estado_pago = 'PAGADO'
+            self.monto_pagado = self.monto_total
+        else:
+            self.estado_pago = 'PARCIAL'
+
+        self.total_deuda = self.monto_total - self.monto_pagado
+        super().save(*args, **kwargs)
+
+
+class HistorialMedico(models.Model):
+    mascota = models.ForeignKey(
+        Mascotas, related_name='historial', on_delete=models.CASCADE, blank=True, null=True)
+    enfermedades_cronicas = models.TextField(null=True, blank=True)
+    alergias = models.TextField(null=True, blank=True)
+    cirugias = models.TextField(null=True, blank=True)
+    antecedentes = models.TextField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.Fecha_hora}"
+        return f"Historial Médico de {self.mascota.nombre}"
+
+
+# owner = models.ForeignKey(
+#     'auth.User', related_name='snippets', on_delete=models.CASCADE)
+# highlighted = models.TextField()

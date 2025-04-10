@@ -1,92 +1,73 @@
-from django.shortcuts import render
-from rest_framework import status
+from django.shortcuts import render, get_object_or_404
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
-from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.reverse import reverse
+from rest_framework import mixins, permissions, generics, status
+from rest_framework import viewsets, renderers, filters
 from .serializers import *
 from .models import *
+from django.http import Http404
+from django.db.models import Sum
+from pygments import highlight
+from .abstractviews import AbstractViewSet
+from .actions import *
 # Create your views here.
 
+
 # Un ViewSet proporciona una implementacion de alto nivel para crear listas relacionadas con un modelo
-# Se prefirio el uso de ViewSet antes que el de APIview porque este facilita la creacion de la api, DRF genera automatico los metodos CRUD
 
-
+@especialidad_action
 class VeterinariosViewSet(viewsets.ModelViewSet):
-    # define los objetos que el ViewSet manejara
     queryset = Veterinarios.objects.all()
     serializer_class = VeterinariosSerializers
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+# /api/veterinarios/por_especialidad/?especialidad=Cardiologo
 
 
+# @filtrar_por_especie_action
+# @filtrar_por_peso_action
 class MascotasViewSet(viewsets.ModelViewSet):
-    queryset = Mascotas.objects.all()  # define los objetos que el ViewSet manejara
+    queryset = Mascotas.objects.all()
     serializer_class = MascotasSerializers
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+
+# /api/Mascotas/caninos/
+# /api/Mascotas/ligeros/
 
 
-class ClientesViewSet(viewsets.ModelViewSet):
-    queryset = Clientes.objects.all()  # define los objetos que el ViewSet manejara
+class ClientesdosViewSet(AbstractViewSet):
+    queryset = Clientesdos.objects.all()
     serializer_class = ClientesSerializers
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+
+# /api/Clientes/deudores/
 
 
-class ConsultasViewSet(viewsets.ModelViewSet):
-    queryset = Consultas.objects.all()  # define los objetos que el ViewSet manejara
+class ConsultasViewSet(AbstractViewSet):
+    queryset = Consultas.objects.all().order_by("pk")
     serializer_class = ConsultasSerializers
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
 
 
-class DiagnosticosViewSet(viewsets.ModelViewSet):
-    # define los objetos que el ViewSet manejara
-    queryset = Diagnosticos.objects.all()
-    serializer_class = DiagnosticosSerializers
+@marcar_pagada_action
+class FacturasViewSet(AbstractViewSet):
+    queryset = Facturas.objects.all()
+    serializer_class = FacturasSerializers
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+
+# /api/facturas/{id}/marcar_pagada/
 
 
-class MascotasPorNombre(APIView):
-    def get(self, request):
-        nombre = request.GET.get("Nombre", "").strip()
-
-        if nombre:
-            mascota = Mascotas.objects.filter(Nombre__icontains=nombre)
-
-            if mascota.exists():
-                serializer = MascotasSerializers(mascota, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-
-            return Response({"error": "No se encontró ninguna mascota con ese nombre"}, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({"error": "Debes enviar un parámetro"}, status=status.HTTP_400_BAD_REQUEST)
-
-# Mascotas
+class HistorialMedicoViewSet(AbstractViewSet):
+    queryset = HistorialMedico.objects.all().order_by("pk")
+    serializer_class = HistorialMedicoSerializers
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
 
 
-@api_view(['GET', 'POST'])
-def Mascotas_list(request):
-    if request.method == 'GET':
-        mascotas = Mascotas.objects.all()
-        serializer = MascotaSerializers(mascotas, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    elif request.method == 'POST':
-        serializer = MascotasSerializers(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET', 'PUT', 'DELETE'])
-def Mascotas_detail(request, pk):
-    mascotas = get_object_or_404(Mascotas, pk=pk)
-
-    if request.method == 'GET':
-        serializer = MascotasSerializers(mascotas)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    elif request.method == 'PUT':
-        serializer = MascotasSerializers(mascotas, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    elif request.method == 'DELETE':
-        mascotas.delete()
-        return Response({"message": "Mascota eliminada"}, status=status.HTTP_204_NO_CONTENT)
+class MascotasDosViewSet(MascotasViewSet):
+    queryset = Mascotas.objects.filter(raza="Terranova")
